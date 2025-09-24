@@ -178,9 +178,11 @@ const generateSampleOrders = (): Order[] => {
 }
 
 export default function AdminDashboard() {
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" })
-  const [loginError, setLoginError] = useState("")
+  const [password, setPassword] = useState("")
+  const [setupPassword, setSetupPassword] = useState("")
+  const [authError, setAuthError] = useState("")
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all")
@@ -188,29 +190,59 @@ export default function AdminDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [newOrdersCount, setNewOrdersCount] = useState(0)
 
-  // Initialize orders and simulate real-time updates
+  // Check if admin is configured on mount
   useEffect(() => {
-    if (isAuthenticated) {
-      const initialOrders = generateSampleOrders()
-      setOrders(initialOrders)
-
-      // Simulate new orders coming in
-      const newOrderInterval = setInterval(() => {
-        const newOrder = generateSampleOrders()[0]
-        newOrder.id = `order-${Date.now()}`
-        newOrder.number = Math.floor(Math.random() * 9000) + 1000
-        newOrder.timestamp = new Date()
-        newOrder.status = "received"
-
-        setOrders((prev) => [newOrder, ...prev])
-        setNewOrdersCount((prev) => prev + 1)
-
-        // Play notification sound (in real app)
-        console.log("🔔 Nouvelle commande reçue!")
-      }, 45000) // New order every 45 seconds
-
-      return () => clearInterval(newOrderInterval)
+    const checkConfigured = async () => {
+      try {
+        const res = await fetch("/api/admin/setup")
+        const data = await res.json()
+        setIsConfigured(Boolean(data.configured))
+      } catch {
+        setIsConfigured(true) // fail-safe to show login
+      }
     }
+    checkConfigured()
+  }, [])
+
+  // Fetch orders periodically when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let timer: any
+    const fetchOrders = async () => {
+      try {
+        const res = await fetch("/api/orders")
+        const data = await res.json()
+        // Map API orders to local Order type
+        const mapped: Order[] = (data || []).map((o: any) => ({
+          id: o.id,
+          number: o.number || parseInt((o.id || "").replace(/\D/g, "").slice(-4) || "1000", 10),
+          status: (o.status || "received") as OrderStatus,
+          timestamp: new Date(o.createdAt || Date.now()),
+          estimatedTime: o.type === "delivery" ? 35 : 20,
+          orderInfo: o.type === "delivery"
+            ? { type: "delivery", name: o.name, phone: o.phone, address: o.address }
+            : { type: "table", tableNumber: o.tableNumber },
+          items: o.items || [],
+          subtotal: o.total || 0,
+          taxes: 0,
+          deliveryFee: o.type === "delivery" ? 0 : 0,
+          discount: 0,
+          total: o.total || 0,
+          promoCode: undefined,
+        }))
+        setOrders((prev) => {
+          if (prev.length > 0 && mapped.length > prev.length) {
+            setNewOrdersCount((n) => n + (mapped.length - prev.length))
+          }
+          return mapped
+        })
+      } catch (e) {
+        console.error(e)
+      }
+      timer = setTimeout(fetchOrders, 10000)
+    }
+    fetchOrders()
+    return () => timer && clearTimeout(timer)
   }, [isAuthenticated])
 
   // Update current time every minute
@@ -222,30 +254,63 @@ export default function AdminDashboard() {
     return () => clearInterval(timeInterval)
   }, [])
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAuthError("")
+    try {
+      const res = await fetch("/api/admin/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: setupPassword }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Échec de configuration")
+      }
+      setIsConfigured(true)
+    } catch (e: any) {
+      setAuthError(e.message || "Erreur inconnue")
+    }
+  }
 
-    // Simple authentication (in real app, this would be proper auth)
-    if (loginForm.username === "admin" && loginForm.password === "restaurant123") {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError("")
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error("Mot de passe incorrect")
       setIsAuthenticated(true)
-      setLoginError("")
-    } else {
-      setLoginError("Nom d'utilisateur ou mot de passe incorrect")
+    } catch (e: any) {
+      setAuthError(e.message || "Erreur d'authentification")
     }
   }
 
   const handleLogout = () => {
     setIsAuthenticated(false)
-    setLoginForm({ username: "", password: "" })
+    setPassword("")
     setOrders([])
     setSelectedOrder(null)
   }
 
-  const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prev) => prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)))
-
-    if (selectedOrder?.id === orderId) {
-      setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null))
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orderId, status: newStatus }),
+      })
+      if (!res.ok) throw new Error("Échec de mise à jour")
+      setOrders((prev) => prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order)))
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null))
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -298,40 +363,42 @@ export default function AdminDashboard() {
               <UtensilsCrossed className="h-8 w-8 text-primary" />
             </div>
             <CardTitle className="text-2xl">Administration</CardTitle>
-            <CardDescription>Connectez-vous pour accéder au tableau de bord</CardDescription>
+            <CardDescription>Accès réservé au personnel</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Nom d'utilisateur</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                  required
-                />
-              </div>
-              {loginError && <p className="text-sm text-destructive">{loginError}</p>}
-              <Button type="submit" className="w-full">
-                Se connecter
-              </Button>
-            </form>
-            <div className="mt-4 p-3 bg-muted rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                <strong>Démo:</strong> admin / restaurant123
-              </p>
-            </div>
+            {isConfigured === false ? (
+              <form onSubmit={handleSetup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="setupPassword">Créer un mot de passe</Label>
+                  <Input
+                    id="setupPassword"
+                    type="password"
+                    value={setupPassword}
+                    onChange={(e) => setSetupPassword(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                </div>
+                {authError && <p className="text-sm text-destructive">{authError}</p>}
+                <Button type="submit" className="w-full">Initialiser</Button>
+                <p className="text-xs text-muted-foreground text-center">Le mot de passe sera stocké de manière sécurisée (hash)</p>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                {authError && <p className="text-sm text-destructive">{authError}</p>}
+                <Button type="submit" className="w-full">Se connecter</Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -344,7 +411,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border bg-card sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -370,11 +437,18 @@ export default function AdminDashboard() {
         </div>
       </header>
 
+      {/* Banner */}
+      <div className="bg-amber-50 border-b border-amber-200">
+        <div className="container mx-auto px-4 py-2 text-center text-amber-800 text-sm">
+          Cet espace est réservé uniquement aux serveurs et au propriétaire du restaurant.
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         <div className="grid gap-6">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -397,7 +471,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Chiffre d'affaires</p>
-                    <p className="text-2xl font-bold">{stats.totalRevenue.toFixed(2)} €</p>
+                    <p className="text-2xl font-bold">{stats.totalRevenue.toFixed(2)} DA</p>
                   </div>
                 </div>
               </CardContent>
@@ -425,7 +499,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Panier moyen</p>
-                    <p className="text-2xl font-bold">{stats.averageOrderValue.toFixed(2)} €</p>
+                    <p className="text-2xl font-bold">{stats.averageOrderValue.toFixed(2)} DA</p>
                   </div>
                 </div>
               </CardContent>
@@ -438,14 +512,14 @@ export default function AdminDashboard() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2">
                       <Receipt className="h-5 w-5" />
                       Commandes ({filteredOrders.length})
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 overflow-x-auto">
                       <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)}>
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-32 sm:w-40">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -460,7 +534,7 @@ export default function AdminDashboard() {
                       </Select>
 
                       <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as any)}>
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-32 sm:w-40">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -473,7 +547,7 @@ export default function AdminDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="max-h-[60vh] md:max-h-96 overflow-y-auto">
                     {filteredOrders.map((order) => {
                       const config = statusConfig[order.status]
                       const StatusIcon = config.icon
@@ -507,7 +581,7 @@ export default function AdminDashboard() {
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="font-medium">{order.total.toFixed(2)} €</p>
+                              <p className="font-medium">{order.total.toFixed(2)} DA</p>
                               <Badge variant="secondary" className="text-xs">
                                 {config.label}
                               </Badge>
@@ -589,6 +663,27 @@ export default function AdminDashboard() {
                             className="col-span-2 bg-green-700 hover:bg-green-800"
                           >
                             {selectedOrder.orderInfo.type === "table" ? "Marquer comme servie" : "Marquer comme livrée"}
+                          </Button>
+                        )}
+                        {(selectedOrder.status === "served" || selectedOrder.status === "delivered") && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="col-span-2"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/orders?id=${encodeURIComponent(selectedOrder.id)}`, {
+                                  method: "DELETE",
+                                })
+                                if (!res.ok) throw new Error("Échec de la suppression")
+                                setOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id))
+                                setSelectedOrder(null)
+                              } catch (e) {
+                                console.error(e)
+                              }
+                            }}
+                          >
+                            Effacer la commande
                           </Button>
                         )}
                       </div>

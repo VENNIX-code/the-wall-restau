@@ -46,11 +46,11 @@ interface OrderSummary {
   promoCode?: string
 }
 
-// Configuration for calculations
-const TAX_RATE = 0.2 // 20% TVA
-const DELIVERY_FEE = 3.5 // Fixed delivery fee
-const DISCOUNT_THRESHOLD = 50.0 // Minimum for automatic discount
-const DISCOUNT_RATE = 0.05 // 5% discount for orders > 50€
+// Configuration for calculations (values indicative; adjust as needed)
+const TAX_RATE = 0.0 // TVA incluse dans les prix affichés (0 si non applicable)
+const DELIVERY_FEE = 200 // Frais de livraison fixes (DA)
+const DISCOUNT_THRESHOLD = 5000 // Réduction automatique au-delà de ce montant (DA)
+const DISCOUNT_RATE = 0.05 // 5% de réduction
 
 export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedToCheckout }: ShoppingCartProps) {
   const [promoCode, setPromoCode] = useState("")
@@ -58,6 +58,8 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
   const [promoError, setPromoError] = useState("")
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [confirmedOrder, setConfirmedOrder] = useState<OrderSummary | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Valid promo codes (in real app, this would come from backend)
   const validPromoCodes = {
@@ -151,11 +153,34 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
 
   const orderSummary = calculateOrderSummary()
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return
-
-    setConfirmedOrder(orderSummary)
-    setShowConfirmation(true)
+  const handleCheckout = async () => {
+    if (cart.length === 0 || isSubmitting) return
+    setSubmitError(null)
+    setIsSubmitting(true)
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderInfo,
+          items: cart,
+          total: orderSummary.total,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Échec de l'envoi de la commande")
+      }
+      // Optionally, we could use the returned order to show a number/id
+      setConfirmedOrder(orderSummary)
+      setShowConfirmation(true)
+      // Clear the cart after successful submission
+      onUpdateCart([])
+    } catch (e: any) {
+      setSubmitError(e.message || "Une erreur est survenue")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleBackToMenu = () => {
@@ -268,9 +293,9 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
                     )}
 
                     <div className="mt-2 text-sm font-medium">
-                      {item.totalPrice.toFixed(2)} €
+                      {item.totalPrice.toFixed(2)} DA
                       <span className="text-muted-foreground ml-1">
-                        ({(item.totalPrice / item.quantity).toFixed(2)} € × {item.quantity})
+                        ({(item.totalPrice / item.quantity).toFixed(2)} DA × {item.quantity})
                       </span>
                     </div>
                   </div>
@@ -352,25 +377,27 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span>Sous-total</span>
-                <span>{orderSummary.subtotal.toFixed(2)} €</span>
+                <span>{orderSummary.subtotal.toFixed(2)} DA</span>
               </div>
 
-              <div className="flex justify-between">
-                <span>TVA (20%)</span>
-                <span>{orderSummary.taxes.toFixed(2)} €</span>
-              </div>
+              {TAX_RATE > 0 && (
+                <div className="flex justify-between">
+                  <span>TVA</span>
+                  <span>{orderSummary.taxes.toFixed(2)} DA</span>
+                </div>
+              )}
 
               {orderSummary.deliveryFee > 0 && (
                 <div className="flex justify-between">
                   <span>Frais de livraison</span>
-                  <span>{orderSummary.deliveryFee.toFixed(2)} €</span>
+                  <span>{orderSummary.deliveryFee.toFixed(2)} DA</span>
                 </div>
               )}
 
               {orderSummary.discount > 0 && (
                 <div className="flex justify-between text-green-600 dark:text-green-400">
                   <span>Réduction {appliedPromoCode ? `(${appliedPromoCode})` : "(automatique)"}</span>
-                  <span>-{orderSummary.discount.toFixed(2)} €</span>
+                  <span>-{orderSummary.discount.toFixed(2)} DA</span>
                 </div>
               )}
 
@@ -378,11 +405,14 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
 
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span>{orderSummary.total.toFixed(2)} €</span>
+                <span>{orderSummary.total.toFixed(2)} DA</span>
               </div>
 
               {orderSummary.subtotal >= DISCOUNT_THRESHOLD && !appliedPromoCode && (
                 <p className="text-sm text-green-600 dark:text-green-400">🎉 Réduction automatique de 5% appliquée !</p>
+              )}
+              {submitError && (
+                <p className="text-sm text-destructive">{submitError}</p>
               )}
             </CardContent>
           </Card>
@@ -392,8 +422,8 @@ export default function Cart({ cart, orderInfo, onUpdateCart, onBack, onProceedT
       {/* Fixed Checkout Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4">
         <div className="container mx-auto max-w-2xl">
-          <Button size="lg" className="w-full" onClick={handleCheckout} disabled={cart.length === 0}>
-            Confirmer la commande • {orderSummary.total.toFixed(2)} €
+          <Button size="lg" className="w-full" onClick={handleCheckout} disabled={cart.length === 0 || isSubmitting}>
+            {isSubmitting ? "Envoi en cours..." : `Confirmer la commande • ${orderSummary.total.toFixed(2)} DA`}
           </Button>
         </div>
       </div>

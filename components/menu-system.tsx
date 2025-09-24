@@ -1,5 +1,4 @@
 "use client"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Plus, Minus, ShoppingCart, ArrowLeft, ArrowRight } from "lucide-react"
 import ShoppingCartComponent from "./shopping-cart"
+import { Drawer } from "vaul"
 
 interface MenuItem {
   id: string
@@ -40,7 +40,7 @@ interface MenuSystemProps {
     address?: string
   }
   onBack: () => void
-  onCartView: () => void
+  onCartView?: () => void
 }
 
 // Sample menu data
@@ -1257,7 +1257,7 @@ export default function MenuSystem({ orderInfo, onBack, onCartView }: MenuSystem
 
   const handleCartClick = () => {
     setShowCart(true)
-    onCartView()
+    onCartView && onCartView()
   }
 
   const handleBackFromCart = () => {
@@ -1267,18 +1267,6 @@ export default function MenuSystem({ orderInfo, onBack, onCartView }: MenuSystem
   const handleProceedToCheckout = (orderSummary: any) => {
     console.log("Proceeding to checkout:", orderSummary)
     // This will be handled in the next task
-  }
-
-  if (showCart) {
-    return (
-      <ShoppingCartComponent
-        cart={cart}
-        orderInfo={orderInfo}
-        onUpdateCart={setCart}
-        onBack={handleBackFromCart}
-        onProceedToCheckout={handleProceedToCheckout}
-      />
-    )
   }
 
   return (
@@ -1387,7 +1375,7 @@ export default function MenuSystem({ orderInfo, onBack, onCartView }: MenuSystem
       </main>
 
       {cartItemCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 glass-effect neon-glow border-t border-border p-4 animate-slide-up backdrop-blur-xl">
+        <div className="fixed bottom-0 left-0 right-0 glass-effect neon-glow border-t border-border p-4 animate-slide-up backdrop-blur-xl z-50">
           <div className="container mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1416,6 +1404,27 @@ export default function MenuSystem({ orderInfo, onBack, onCartView }: MenuSystem
           </div>
         </div>
       )}
+
+      {/* Cart Drawer */}
+      <Drawer.Root open={showCart} onOpenChange={setShowCart}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/50 z-40" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-50">
+            <div className="mx-auto max-w-3xl w-full rounded-t-2xl bg-background border-t border-border shadow-2xl">
+              <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-muted" />
+              <div className="p-2 sm:p-4">
+                <ShoppingCartComponent
+                  cart={cart}
+                  orderInfo={orderInfo}
+                  onUpdateCart={(updated) => setCart(updated as any)}
+                  onBack={handleBackFromCart}
+                  onProceedToCheckout={handleProceedToCheckout}
+                />
+              </div>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
 
       {/* Item Options Modal */}
       {selectedItem && (

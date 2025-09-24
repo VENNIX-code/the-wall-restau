@@ -298,7 +298,7 @@ export default function OrderConfirmation({
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">{item.totalPrice.toFixed(2)} €</p>
+                      <p className="font-medium">{item.totalPrice.toFixed(2)} DA</p>
                       <p className="text-sm text-muted-foreground">× {item.quantity}</p>
                     </div>
                   </div>
@@ -308,42 +308,37 @@ export default function OrderConfirmation({
               <Separator />
 
               {/* Order Summary */}
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="flex justify-between">
                   <span>Sous-total</span>
-                  <span>{orderSummary.subtotal.toFixed(2)} €</span>
+                  <span>{orderSummary.subtotal.toFixed(2)} DA</span>
                 </div>
-
                 <div className="flex justify-between">
-                  <span>TVA (20%)</span>
-                  <span>{orderSummary.taxes.toFixed(2)} €</span>
+                  <span>Taxes</span>
+                  <span>{orderSummary.taxes.toFixed(2)} DA</span>
                 </div>
-
                 {orderSummary.deliveryFee > 0 && (
                   <div className="flex justify-between">
                     <span>Frais de livraison</span>
-                    <span>{orderSummary.deliveryFee.toFixed(2)} €</span>
+                    <span>{orderSummary.deliveryFee.toFixed(2)} DA</span>
                   </div>
                 )}
-
                 {orderSummary.discount > 0 && (
                   <div className="flex justify-between text-green-600 dark:text-green-400">
-                    <span>Réduction {orderSummary.promoCode ? `(${orderSummary.promoCode})` : "(automatique)"}</span>
-                    <span>-{orderSummary.discount.toFixed(2)} €</span>
+                    <span>Réduction</span>
+                    <span>-{orderSummary.discount.toFixed(2)} DA</span>
                   </div>
                 )}
+              </div>
+              <Separator />
 
-                <Separator />
-
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span>{orderSummary.total.toFixed(2)} €</span>
-                </div>
+              <div className="flex justify-between text-lg font-bold">
+                <span>Total</span>
+                <span>{orderSummary.total.toFixed(2)} DA</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Delivery Information */}
           {orderInfo.type === "delivery" && (
             <Card>
               <CardHeader>

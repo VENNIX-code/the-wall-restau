@@ -175,6 +175,7 @@ export default function HomePage() {
                     <Button
                       className="w-full bg-[#333333] hover:bg-[#222222] text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base shadow-lg"
                       size="lg"
+                      onClick={() => setOrderType("table")}
                     >
                       Choisir ma table
                     </Button>
@@ -200,6 +201,7 @@ export default function HomePage() {
                     <Button
                       className="w-full bg-[#333333] hover:bg-[#222222] text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base shadow-lg"
                       size="lg"
+                      onClick={() => setOrderType("delivery")}
                     >
                       Commander en livraison
                     </Button>
