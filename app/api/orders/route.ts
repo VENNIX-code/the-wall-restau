@@ -3,6 +3,8 @@ import { genId } from "@/lib/storage"
 import { getOrdersCollection } from "@/lib/db"
 import type { OrderRecord, StoredOrder } from "@/lib/types"
 
+export const runtime = "nodejs"
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)

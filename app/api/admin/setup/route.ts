@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { hashPassword } from "@/lib/auth"
 import { getAdminConfigMongo, setAdminPasswordHashMongo } from "@/lib/admin-repo"
 
+export const runtime = "nodejs"
+
 export async function POST(request: Request) {
   try {
     const cfg = await getAdminConfigMongo()
