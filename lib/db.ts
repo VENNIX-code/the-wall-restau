@@ -1,7 +1,7 @@
 import { MongoClient, Db, Collection } from "mongodb"
 import type { StoredOrder } from "./types"
 
-const uri = process.env.MONGODB_URI
+const uri = process.env.MONGODB_URI || process.env.MONGO_URI
 
 // Use a global cached promise to avoid creating multiple clients in dev Hot Reload
 declare global {
@@ -31,5 +31,5 @@ export async function getDb(): Promise<Db> {
 
 export async function getOrdersCollection(): Promise<Collection<StoredOrder>> {
   const database = await getDb()
-  return database.collection<StoredOrder>("commandes")
+  return database.collection<StoredOrder>("orders")
 }

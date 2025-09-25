@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { getAdminConfig } from "@/lib/storage"
 import { verifyPassword } from "@/lib/auth"
+import { getAdminConfigMongo } from "@/lib/admin-repo"
 
 export async function POST(request: Request) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     if (typeof password !== "string") {
       return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 })
     }
-    const cfg = await getAdminConfig()
+    const cfg = await getAdminConfigMongo()
     if (!cfg.passwordHash) {
       return NextResponse.json({ ok: false, error: "Not configured" }, { status: 409 })
     }

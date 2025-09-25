@@ -1,76 +1,49 @@
-import { promises as fs } from "fs"
-import path from "path"
 import crypto from "crypto"
 import type { AdminConfig, StoredOrder, OrderRecord } from "./types"
 
-const dataDir = path.join(process.cwd(), "server")
-const ordersFile = path.join(dataDir, "orders.json")
-const adminFile = path.join(dataDir, "admin.json")
+// Filesystem storage disabled for Vercel (read-only FS). Use MongoDB instead.
+const dataDir = ""
+const ordersFile = ""
+const adminFile = ""
 
 async function ensureDir() {
-  try {
-    await fs.mkdir(dataDir, { recursive: true })
-  } catch {}
+  throw new Error("Filesystem storage is disabled. Use MongoDB via lib/db.ts.")
 }
 
-async function readJSON<T>(filePath: string, fallback: T): Promise<T> {
-  try {
-    const raw = await fs.readFile(filePath, "utf8")
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
+async function readJSON<T>(_filePath: string, _fallback: T): Promise<T> {
+  throw new Error("readJSON disabled. Migrate to MongoDB (see lib/db.ts and app/api/* routes).")
 }
 
-async function writeJSON<T>(filePath: string, data: T): Promise<void> {
-  await ensureDir()
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8")
+async function writeJSON<T>(_filePath: string, _data: T): Promise<void> {
+  throw new Error("writeJSON disabled. Migrate to MongoDB (see lib/db.ts and app/api/* routes).")
 }
 
 export async function getAdminConfig(): Promise<AdminConfig> {
-  return readJSON<AdminConfig>(adminFile, {})
+  throw new Error("getAdminConfig (filesystem) disabled. Use MongoDB admin repo (lib/admin-repo.ts).")
 }
 
-export async function setAdminPasswordHash(passwordHash: string): Promise<void> {
-  const cfg: AdminConfig = { passwordHash }
-  await writeJSON(adminFile, cfg)
+export async function setAdminPasswordHash(_passwordHash: string): Promise<void> {
+  throw new Error("setAdminPasswordHash (filesystem) disabled. Use MongoDB admin repo (lib/admin-repo.ts).")
 }
 
 export async function ordersAll(): Promise<StoredOrder[]> {
-  return readJSON<StoredOrder[]>(ordersFile, [])
+  throw new Error("ordersAll (filesystem) disabled. Use MongoDB via lib/db.ts.")
 }
 
-export async function ordersCreate(order: OrderRecord): Promise<StoredOrder> {
-  const existing = await ordersAll()
-  const stored: StoredOrder = {
-    ...order,
-    status: "received",
-  }
-  existing.unshift(stored)
-  await writeJSON(ordersFile, existing)
-  return stored
+export async function ordersCreate(_order: OrderRecord): Promise<StoredOrder> {
+  throw new Error("ordersCreate (filesystem) disabled. Use MongoDB via lib/db.ts.")
 }
 
-export async function ordersUpdateStatus(id: string, status: StoredOrder["status"]): Promise<StoredOrder | null> {
-  const list = await ordersAll()
-  const idx = list.findIndex((o) => o.id === id)
-  if (idx === -1) return null
-  list[idx].status = status
-  await writeJSON(ordersFile, list)
-  return list[idx]
+export async function ordersUpdateStatus(_id: string, _status: StoredOrder["status"]): Promise<StoredOrder | null> {
+  throw new Error("ordersUpdateStatus (filesystem) disabled. Use MongoDB via lib/db.ts.")
 }
 
-export async function ordersClear(id: string): Promise<boolean> {
-  const list = await ordersAll()
-  const filtered = list.filter((o) => o.id !== id)
-  const changed = filtered.length !== list.length
-  if (changed) await writeJSON(ordersFile, filtered)
-  return changed
+export async function ordersClear(_id: string): Promise<boolean> {
+  throw new Error("ordersClear (filesystem) disabled. Use MongoDB via lib/db.ts.")
 }
 
-export async function ordersByType(type: "table" | "delivery"): Promise<StoredOrder[]> {
-  const list = await ordersAll()
-  return list.filter((o) => o.type === type)
+export async function ordersByType(_type: "table" | "delivery"): Promise<StoredOrder[]> {
+  throw new Error("ordersByType (filesystem) disabled. Use MongoDB via lib/db.ts.")
 }
 
 export function genId(prefix = "order"): string {
